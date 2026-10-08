@@ -16,6 +16,7 @@ export const CreatePost = ({ currentUser, onPostCreated }: CreatePostProps) => {
   const [preview, setPreview] = useState<string>('')
   const [visibility, setVisibility] = useState('public')
   const [isLoading, setIsLoading] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -30,12 +31,13 @@ export const CreatePost = ({ currentUser, onPostCreated }: CreatePostProps) => {
   }
 
   const handlePost = async () => {
+    setErrorMessage(null)
     if (!caption.trim() && !selectedImage) {
-      alert('Please write something or add an image to post!')
+      setErrorMessage('Please write something or add an image to post!')
       return
     }
     if (!currentUser?.id) {
-      alert('Please login to post!')
+      setErrorMessage('Please login to post!')
       return
     }
 
@@ -101,8 +103,6 @@ export const CreatePost = ({ currentUser, onPostCreated }: CreatePostProps) => {
           console.log('Image URL:', imageUrl)
         } catch (err) {
           console.error('Image upload failed:', err)
-          const errMsg = err instanceof Error ? err.message : String(err)
-          alert(`Image upload failed: ${errMsg}\n\nPost will be created without image.`)
           imageUrl = null
         }
       }
@@ -137,7 +137,7 @@ export const CreatePost = ({ currentUser, onPostCreated }: CreatePostProps) => {
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Unknown error'
       console.error('Error creating post:', errorMsg)
-      alert(`Failed to create post: ${errorMsg}`)
+      setErrorMessage(`Failed to create post: ${errorMsg}`)
     } finally {
       setIsLoading(false)
     }
@@ -157,6 +157,11 @@ export const CreatePost = ({ currentUser, onPostCreated }: CreatePostProps) => {
             </div>
           ) : (
             <div className="space-y-3">
+              {errorMessage && (
+                <div className="bg-red-50 border border-red-200 text-red-700 text-xs px-3 py-2 rounded-lg">
+                  {errorMessage}
+                </div>
+              )}
               <textarea
                 value={caption}
                 onChange={(e) => setCaption(e.target.value)}

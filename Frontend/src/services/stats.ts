@@ -13,7 +13,7 @@ const withTimeout = <T,>(promise: Promise<T>, timeoutMs: number): Promise<T> => 
 export const calculateProfileStats = async (userId: string) => {
   try {
     // Fetch all stats in parallel with timeout
-    const [postsRes, followersRes, followingRes] = await Promise.all([
+    const [postsRes, followersRes, followingRes]: any[] = await Promise.all([
       withTimeout(
         supabase
           .from('posts')

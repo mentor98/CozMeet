@@ -62,7 +62,6 @@ export const Register = () => {
         }
       }
 
-      alert('Registration successful! Please login.')
       navigate('/login')
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Registration failed'

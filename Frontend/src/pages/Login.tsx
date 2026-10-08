@@ -94,6 +94,18 @@ export const Login = () => {
             >
               {loading ? 'Logging in...' : 'Login'}
             </button>
+
+            <button
+              type="button"
+              disabled={loading}
+              onClick={() => {
+                setEmail('reinhard@example.com')
+                setPassword('demo123')
+              }}
+              className="w-full btn-secondary text-sm py-2 disabled:opacity-50"
+            >
+              Use Demo Account (Reinhard)
+            </button>
           </form>
 
           <div className="mt-6 text-center">

@@ -8,6 +8,7 @@ import { ActivityCard } from '@/components/activity/ActivityCard'
 import { SuggestedUsers } from '@/components/suggestions/SuggestedUsers'
 import { RecommendedPosts } from '@/components/suggestions/RecommendedPosts'
 import { PostSkeleton } from '@/components/common/LoadingSkeleton'
+import { Toast } from '@/components/common/Toast'
 import { supabase } from '@/lib/supabase'
 import { Post, Profile } from '@/types'
 import { ChevronDown } from 'lucide-react'
@@ -18,6 +19,7 @@ export const Home = () => {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'recent' | 'popular' | 'following'>('recent')
   const [refreshKey, setRefreshKey] = useState(0)
+  const [toastMessage, setToastMessage] = useState<string | null>(null)
 
   const fetchPosts = useCallback(async () => {
     try {
@@ -172,7 +174,7 @@ export const Home = () => {
       const postUrl = `${window.location.origin}/post/${postId}`
       await navigator.clipboard.writeText(postUrl)
       
-      alert('Post link copied to clipboard!')
+      setToastMessage('Post link copied to clipboard!')
     } catch (err) {
       console.error('Error sharing post:', err)
     }
@@ -251,6 +253,13 @@ export const Home = () => {
           </div>
         </div>
       </div>
+      {toastMessage && (
+        <Toast
+          message={toastMessage}
+          type="success"
+          onClose={() => setToastMessage(null)}
+        />
+      )}
     </div>
   )
 }

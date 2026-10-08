@@ -36,7 +36,6 @@ export const CommentInput = ({
       onCommentAdded?.(comment)
     } catch (err) {
       console.error('Error adding comment:', err)
-      alert('Failed to add comment. Please try again.')
     } finally {
       setIsLoading(false)
     }

@@ -1,0 +1,7 @@
+{
+  "name": "CozMeet",
+  "description": "Social networking platform for connecting, sharing posts, following friends, and discovering content.",
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

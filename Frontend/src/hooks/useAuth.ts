@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Profile } from '@/types'
 import { calculateProfileStats } from '@/services/stats'
@@ -8,82 +8,92 @@ export const useAuth = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [session, setSession] = useState<any>(null)
+  const mountedRef = useRef(true)
+  const cacheRef = useRef<Map<string, Profile>>(new Map())
 
-  useEffect(() => {
-    let mounted = true
-    let timeoutId: ReturnType<typeof setTimeout>
+  const createFallbackProfile = useCallback((userId: string, email?: string): Profile => ({
+    id: userId,
+    username: email?.split('@')[0] || 'user',
+    display_name: email?.split('@')[0] || 'User',
+    bio: null,
+    avatar_url: null,
+    cover_url: null,
+    posts_count: 0,
+    followers_count: 0,
+    following_count: 0,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }), [])
 
-    const createFallbackProfile = (userId: string, email?: string): Profile => ({
-      id: userId,
-      username: email?.split('@')[0] || 'user',
-      display_name: email?.split('@')[0] || 'User',
-      bio: null,
-      avatar_url: null,
-      cover_url: null,
-      posts_count: 0,
-      followers_count: 0,
-      following_count: 0,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
+  const fetchProfile = useCallback(async (userId: string, email?: string) => {
+    // Check cache first
+    if (cacheRef.current.has(userId)) {
+      return cacheRef.current.get(userId)!
+    }
 
-    const fetchProfile = async (userId: string, email?: string) => {
-      try {
-        // Use limit(1) instead of .single() to avoid coercion errors
-        const { data, error: fetchError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', userId)
-          .limit(1)
+    try {
+      const { data, error: fetchError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .limit(1)
 
-        if (fetchError) {
-          console.error('Profile fetch error:', fetchError.message)
-          return createFallbackProfile(userId, email)
-        }
-
-        if (data && data.length > 0) {
-          const profile = data[0] as Profile
-          
-          // Calculate real stats
-          try {
-            const stats = await calculateProfileStats(userId)
-            return { ...profile, ...stats }
-          } catch (err) {
-            console.error('Error calculating stats:', err)
-            return profile
-          }
-        } else {
-          console.log('No profile found, creating fallback')
-          return createFallbackProfile(userId, email)
-        }
-      } catch (err) {
-        console.error('Error fetching profile:', err)
+      if (fetchError) {
+        console.error('Profile fetch error:', fetchError.message)
         return createFallbackProfile(userId, email)
       }
+
+      if (data && data.length > 0) {
+        const profile = data[0] as Profile
+        
+        // Calculate real stats
+        try {
+          const stats = await calculateProfileStats(userId)
+          const enrichedProfile = { ...profile, ...stats }
+          cacheRef.current.set(userId, enrichedProfile)
+          return enrichedProfile
+        } catch (err) {
+          console.error('Error calculating stats:', err)
+          cacheRef.current.set(userId, profile)
+          return profile
+        }
+      } else {
+        console.log('No profile found, creating fallback')
+        const fallback = createFallbackProfile(userId, email)
+        cacheRef.current.set(userId, fallback)
+        return fallback
+      }
+    } catch (err) {
+      console.error('Error fetching profile:', err)
+      return createFallbackProfile(userId, email)
     }
+  }, [createFallbackProfile])
+
+  useEffect(() => {
+    let timeoutId: ReturnType<typeof setTimeout>
 
     const initAuth = async () => {
       try {
         const { data: { session: currentSession } } = await supabase.auth.getSession()
         
-        if (!mounted) return
+        if (!mountedRef.current) return
 
         if (currentSession?.user?.id) {
           setSession(currentSession)
           const fetchedProfile = await fetchProfile(currentSession.user.id, currentSession.user.email)
           
-          if (mounted) {
+          if (mountedRef.current) {
             setProfile(fetchedProfile)
             setLoading(false)
           }
         } else {
-          if (mounted) {
+          if (mountedRef.current) {
             setLoading(false)
           }
         }
       } catch (err) {
         console.error('Auth initialization error:', err)
-        if (mounted) {
+        if (mountedRef.current) {
           setError(err instanceof Error ? err.message : 'Failed to initialize auth')
           setLoading(false)
         }
@@ -92,7 +102,7 @@ export const useAuth = () => {
 
     // Set a timeout to ensure loading doesn't hang forever
     timeoutId = setTimeout(() => {
-      if (mounted) setLoading(false)
+      if (mountedRef.current) setLoading(false)
     }, 3000)
 
     initAuth()
@@ -101,7 +111,7 @@ export const useAuth = () => {
       async (event, currentSession) => {
         console.log('Auth state changed:', event)
         
-        if (!mounted) return
+        if (!mountedRef.current) return
 
         if (event === 'SIGNED_IN' && currentSession?.user?.id) {
           setSession(currentSession)
@@ -109,7 +119,7 @@ export const useAuth = () => {
           
           const fetchedProfile = await fetchProfile(currentSession.user.id, currentSession.user.email)
           
-          if (mounted) {
+          if (mountedRef.current) {
             setProfile(fetchedProfile)
             setLoading(false)
           }
@@ -117,16 +127,17 @@ export const useAuth = () => {
           setSession(null)
           setProfile(null)
           setLoading(false)
+          cacheRef.current.clear() // Clear cache on logout
         }
       }
     )
 
     return () => {
-      mounted = false
+      mountedRef.current = false
       clearTimeout(timeoutId)
       subscription?.unsubscribe()
     }
-  }, [])
+  }, [fetchProfile])
 
   return { profile, loading, error, session }
 }

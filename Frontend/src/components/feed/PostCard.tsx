@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Heart, MessageCircle, Bookmark, Share2, MoreVertical } from 'lucide-react'
 import { Post, Profile } from '@/types'
 import { Avatar } from '@/components/common/Avatar'
@@ -37,13 +38,21 @@ export const PostCard = ({
     <div className="card mb-4 overflow-hidden animate-fade-in hover:shadow-lg transition-shadow duration-300">
       {/* Post Header */}
       <div className="p-4 border-b border-border-gray flex items-center justify-between">
-        <div className="flex items-center gap-3">
+        <Link
+          to={user?.username ? `/profile/${user.username}` : '#'}
+          className="flex items-center gap-3 hover:opacity-85 transition-opacity"
+        >
           <Avatar src={user?.avatar_url} size="md" alt={user?.display_name} />
           <div>
-            <h4 className="font-semibold text-dark-text">{user?.display_name}</h4>
-            <p className="text-secondary-text text-xs">{formatTime(post.created_at)}</p>
+            <h4 className="font-semibold text-dark-text hover:text-primary-blue transition-colors">
+              {user?.display_name || 'Anonymous User'}
+            </h4>
+            <p className="text-secondary-text text-xs">
+              {user?.username ? `@${user.username} · ` : ''}
+              {formatTime(post.created_at)}
+            </p>
           </div>
-        </div>
+        </Link>
         <div className="relative">
           <button
             onClick={() => setShowMenu(!showMenu)}

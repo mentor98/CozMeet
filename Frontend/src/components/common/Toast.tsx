@@ -3,12 +3,12 @@ import { X } from 'lucide-react'
 
 interface ToastProps {
   message: string
-  type: 'success' | 'error' | 'info'
+  type?: 'success' | 'error' | 'info'
   duration?: number
   onClose?: () => void
 }
 
-export const Toast = ({ message, type, duration = 3000, onClose }: ToastProps) => {
+export const Toast = ({ message, type = 'info', duration = 3000, onClose }: ToastProps) => {
   const [visible, setVisible] = useState(true)
 
   useEffect(() => {

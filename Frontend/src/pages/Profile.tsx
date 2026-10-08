@@ -117,8 +117,13 @@ export const Profile = () => {
     }
   }, [username, fetchProfile])
 
+  const isOwnProfile =
+    currentUserProfile?.id === profile?.id ||
+    (Boolean(currentUserProfile?.username && profile?.username) &&
+      currentUserProfile?.username.toLowerCase() === profile?.username.toLowerCase())
+
   const handleFollow = async () => {
-    if (!currentUserProfile?.id || !profile) return
+    if (!currentUserProfile?.id || !profile || isOwnProfile) return
 
     try {
       if (isFollowing) {
@@ -174,8 +179,6 @@ export const Profile = () => {
       </div>
     )
   }
-
-  const isOwnProfile = currentUserProfile?.id === profile.id
 
   return (
     <div className="bg-light-gray min-h-screen animate-fade-in">

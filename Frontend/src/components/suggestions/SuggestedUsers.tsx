@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { Profile } from '@/types'
 import { Avatar } from '@/components/common/Avatar'
-import { FollowButton } from '@/components/common/FollowButton'
 
 interface SuggestedUsersProps {
   currentUserId?: string
 }
 
 export const SuggestedUsers = ({ currentUserId }: SuggestedUsersProps) => {
+  const navigate = useNavigate()
   const [suggestions, setSuggestions] = useState<Profile[]>([])
   const [loading, setLoading] = useState(false)
   const [followingMap, setFollowingMap] = useState<Record<string, boolean>>({})
@@ -18,15 +19,18 @@ export const SuggestedUsers = ({ currentUserId }: SuggestedUsersProps) => {
       try {
         setLoading(true)
 
-        // Fetch users not followed by current user
+        // Fetch profiles
         const { data: profiles } = await supabase
           .from('profiles')
           .select('*')
-          .neq('id', currentUserId || '')
-          .limit(5)
+          .limit(10)
 
         if (profiles) {
-          setSuggestions(profiles as Profile[])
+          // Strictly exclude the current user
+          const filtered = (profiles as Profile[]).filter(
+            (p) => p.id !== currentUserId
+          )
+          setSuggestions(filtered.slice(0, 5))
 
           // Check which users are already followed
           if (currentUserId) {
@@ -36,8 +40,8 @@ export const SuggestedUsers = ({ currentUserId }: SuggestedUsersProps) => {
               .eq('follower_id', currentUserId)
 
             const followMap: Record<string, boolean> = {}
-            profiles.forEach((p) => {
-              followMap[p.id] = follows?.some((f) => f.following_id === p.id) || false
+            filtered.forEach((p) => {
+              followMap[p.id] = follows?.some((f: any) => f.following_id === p.id) || false
             })
             setFollowingMap(followMap)
           }
@@ -55,7 +59,7 @@ export const SuggestedUsers = ({ currentUserId }: SuggestedUsersProps) => {
   }, [currentUserId])
 
   const handleFollow = async (userId: string) => {
-    if (!currentUserId) return
+    if (!currentUserId || currentUserId === userId) return
 
     try {
       if (followingMap[userId]) {
@@ -87,44 +91,56 @@ export const SuggestedUsers = ({ currentUserId }: SuggestedUsersProps) => {
     <div className="card p-4">
       <div className="flex items-center justify-between mb-4">
         <h3 className="font-bold text-dark-text">Suggested For you</h3>
-        <button className="text-primary-blue text-sm font-medium hover:underline">
+        <button
+          onClick={() => navigate('/people')}
+          className="text-primary-blue text-xs font-semibold hover:underline"
+        >
           See all
         </button>
       </div>
 
       <div className="space-y-3">
         {loading ? (
-          <p className="text-center text-secondary-text text-sm">Loading...</p>
+          <p className="text-center text-secondary-text text-sm py-2">Loading...</p>
         ) : suggestions.length === 0 ? (
-          <p className="text-center text-secondary-text text-sm">No suggestions</p>
+          <p className="text-center text-secondary-text text-sm py-2">No new suggestions</p>
         ) : (
           suggestions.map((user) => (
-            <div key={user.id} className="flex items-center justify-between p-3 hover:bg-light-gray rounded-lg">
-              <div className="flex items-center gap-3 flex-1">
+            <div
+              key={user.id}
+              className="flex items-center justify-between p-2 hover:bg-light-gray rounded-xl transition-colors"
+            >
+              <Link
+                to={`/profile/${user.username}`}
+                className="flex items-center gap-3 flex-1 min-w-0 mr-2"
+              >
                 <Avatar
                   src={user.avatar_url || undefined}
                   size="sm"
                   alt={user.display_name}
                 />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-dark-text">
+                  <p className="text-sm font-semibold text-dark-text truncate hover:text-primary-blue transition-colors">
                     {user.display_name}
                   </p>
-                  <p className="text-xs text-secondary-text">
+                  <p className="text-xs text-secondary-text truncate">
                     @{user.username}
                   </p>
                 </div>
-              </div>
-              <button
-                onClick={() => handleFollow(user.id)}
-                className={`text-sm font-medium px-4 py-2 rounded-lg transition-colors ${
-                  followingMap[user.id]
-                    ? 'bg-light-gray text-dark-text hover:bg-gray-300'
-                    : 'bg-primary-blue text-white hover:bg-blue-600'
-                }`}
-              >
-                {followingMap[user.id] ? 'Following' : 'Follow'}
-              </button>
+              </Link>
+
+              {user.id !== currentUserId && (
+                <button
+                  onClick={() => handleFollow(user.id)}
+                  className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors flex-shrink-0 ${
+                    followingMap[user.id]
+                      ? 'bg-light-gray text-dark-text hover:bg-gray-300'
+                      : 'bg-primary-blue text-white hover:bg-blue-600'
+                  }`}
+                >
+                  {followingMap[user.id] ? 'Following' : 'Follow'}
+                </button>
+              )}
             </div>
           ))
         )}

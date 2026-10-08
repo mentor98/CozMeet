@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { Post, Profile } from '@/types'
 import { Heart, MessageCircle, Share2 } from 'lucide-react'
@@ -87,17 +88,21 @@ export const RecommendedPosts = ({ currentUserId }: RecommendedPostsProps) => {
           }}
         >
           {/* Post Header */}
-          <div className="flex items-center gap-3 mb-3">
+          <Link
+            to={post.user?.username ? `/profile/${post.user.username}` : '#'}
+            className="flex items-center gap-3 mb-3 hover:opacity-85 transition-opacity"
+          >
             <Avatar src={post.user?.avatar_url} size="md" />
             <div className="flex-1 min-w-0">
-              <h4 className="font-semibold text-sm text-dark-text truncate">
+              <h4 className="font-semibold text-sm text-dark-text truncate hover:text-primary-blue transition-colors">
                 {post.user?.display_name}
               </h4>
               <p className="text-xs text-secondary-text">
+                {post.user?.username ? `@${post.user.username} · ` : ''}
                 {formatTime(post.created_at)}
               </p>
             </div>
-          </div>
+          </Link>
 
           {/* Caption */}
           {post.caption && (

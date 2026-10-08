@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from '@/hooks'
 import { Header } from '@/components/layout/Header'
@@ -7,11 +8,18 @@ import { Register } from '@/pages/Register'
 import { Profile } from '@/pages/Profile'
 import { Settings } from '@/pages/Settings'
 import { Explore } from '@/pages/Explore'
+import { People } from '@/pages/People'
 
 function App() {
   const { profile, loading } = useAuth()
+  const [forceReady, setForceReady] = useState(false)
 
-  if (loading) {
+  useEffect(() => {
+    const timer = setTimeout(() => setForceReady(true), 500)
+    return () => clearTimeout(timer)
+  }, [])
+
+  if (loading && !forceReady) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
@@ -37,6 +45,7 @@ function App() {
         <Route path="/profile/:username" element={<Profile />} />
         <Route path="/settings" element={profile ? <Settings /> : <Navigate to="/login" />} />
         <Route path="/explore" element={<Explore />} />
+        <Route path="/people" element={profile ? <People /> : <Navigate to="/login" />} />
       </Routes>
     </Router>
   )

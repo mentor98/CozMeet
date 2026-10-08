@@ -1,14 +1,12 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Profile } from '@/types'
-import { calculateProfileStats } from '@/services/stats'
 
 export const useAuth = () => {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [session, setSession] = useState<any>(null)
-  const mountedRef = useRef(true)
   const cacheRef = useRef<Map<string, Profile>>(new Map())
 
   const createFallbackProfile = useCallback((userId: string, email?: string): Profile => ({
@@ -25,8 +23,7 @@ export const useAuth = () => {
     updated_at: new Date().toISOString(),
   }), [])
 
-  const fetchProfile = useCallback(async (userId: string, email?: string) => {
-    // Check cache first
+  const fetchProfile = useCallback(async (userId: string, email?: string): Promise<Profile> => {
     if (cacheRef.current.has(userId)) {
       return cacheRef.current.get(userId)!
     }
@@ -39,116 +36,96 @@ export const useAuth = () => {
         .limit(1)
 
       if (fetchError) {
-        console.error('Profile fetch error:', fetchError.message)
-        return createFallbackProfile(userId, email)
+        console.warn('Profile fetch error:', fetchError.message)
+        const fallback = createFallbackProfile(userId, email)
+        cacheRef.current.set(userId, fallback)
+        return fallback
       }
 
       if (data && data.length > 0) {
-        const profile = data[0] as Profile
-        
-        // Try to calculate real stats but don't hang on it
-        try {
-          // Timeout after 1.5 seconds
-          const statsPromise = calculateProfileStats(userId)
-          const timeoutPromise = new Promise(resolve =>
-            setTimeout(() => resolve(null), 1500)
-          )
-          const stats = await Promise.race([statsPromise, timeoutPromise])
-          
-          if (stats) {
-            const enrichedProfile = { ...profile, ...stats }
-            cacheRef.current.set(userId, enrichedProfile)
-            return enrichedProfile
-          }
-        } catch (err) {
-          console.error('Error calculating stats:', err)
-          // Continue with profile even if stats fail
-        }
-        
-        cacheRef.current.set(userId, profile)
-        return profile
+        const fetched = data[0] as Profile
+        cacheRef.current.set(userId, fetched)
+        return fetched
       } else {
-        console.log('No profile found, creating fallback')
         const fallback = createFallbackProfile(userId, email)
         cacheRef.current.set(userId, fallback)
         return fallback
       }
     } catch (err) {
-      console.error('Error fetching profile:', err)
-      return createFallbackProfile(userId, email)
+      console.warn('Error fetching profile:', err)
+      const fallback = createFallbackProfile(userId, email)
+      cacheRef.current.set(userId, fallback)
+      return fallback
     }
   }, [createFallbackProfile])
 
   useEffect(() => {
-    let timeoutId: ReturnType<typeof setTimeout>
+    let isMounted = true
+
+    // Emergency safety timeout: ensure loading becomes false quickly no matter what
+    const timeoutId = setTimeout(() => {
+      if (isMounted) {
+        setLoading(false)
+      }
+    }, 400)
 
     const initAuth = async () => {
       try {
-        const { data: { session: currentSession } } = await supabase.auth.getSession()
-        
-        if (!mountedRef.current) return
+        const { data } = await supabase.auth.getSession()
+        const currentSession = data?.session
+
+        if (!isMounted) return
 
         if (currentSession?.user?.id) {
           setSession(currentSession)
           const fetchedProfile = await fetchProfile(currentSession.user.id, currentSession.user.email)
-          
-          if (mountedRef.current) {
+          if (isMounted) {
             setProfile(fetchedProfile)
             setLoading(false)
           }
         } else {
-          if (mountedRef.current) {
+          if (isMounted) {
+            setProfile(null)
             setLoading(false)
           }
         }
       } catch (err) {
         console.error('Auth initialization error:', err)
-        if (mountedRef.current) {
+        if (isMounted) {
           setError(err instanceof Error ? err.message : 'Failed to initialize auth')
           setLoading(false)
         }
       }
     }
 
-    // Set a timeout to ensure loading doesn't hang forever
-    timeoutId = setTimeout(() => {
-      if (mountedRef.current) {
-        console.log('Auth timeout - forcing loading to false')
-        setLoading(false)
-      }
-    }, 1000)
-
     initAuth()
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, currentSession) => {
-        console.log('Auth state changed:', event)
-        
-        if (!mountedRef.current) return
+    const { data: authData } = supabase.auth.onAuthStateChange(
+      async (event: string, currentSession: any) => {
+        if (!isMounted) return
 
         if (event === 'SIGNED_IN' && currentSession?.user?.id) {
           setSession(currentSession)
-          setLoading(true)
-          
           const fetchedProfile = await fetchProfile(currentSession.user.id, currentSession.user.email)
-          
-          if (mountedRef.current) {
+          if (isMounted) {
             setProfile(fetchedProfile)
             setLoading(false)
           }
         } else if (event === 'SIGNED_OUT') {
-          setSession(null)
-          setProfile(null)
-          setLoading(false)
-          cacheRef.current.clear() // Clear cache on logout
+          if (isMounted) {
+            setSession(null)
+            setProfile(null)
+            setLoading(false)
+            cacheRef.current.clear()
+          }
         }
       }
     )
 
     return () => {
-      mountedRef.current = false
+      isMounted = false
       clearTimeout(timeoutId)
-      subscription?.unsubscribe()
+      authData?.subscription?.unsubscribe?.()
     }
   }, [fetchProfile])
 

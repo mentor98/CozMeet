@@ -46,17 +46,27 @@ export const useAuth = () => {
       if (data && data.length > 0) {
         const profile = data[0] as Profile
         
-        // Calculate real stats
+        // Try to calculate real stats but don't hang on it
         try {
-          const stats = await calculateProfileStats(userId)
-          const enrichedProfile = { ...profile, ...stats }
-          cacheRef.current.set(userId, enrichedProfile)
-          return enrichedProfile
+          // Timeout after 1.5 seconds
+          const statsPromise = calculateProfileStats(userId)
+          const timeoutPromise = new Promise(resolve =>
+            setTimeout(() => resolve(null), 1500)
+          )
+          const stats = await Promise.race([statsPromise, timeoutPromise])
+          
+          if (stats) {
+            const enrichedProfile = { ...profile, ...stats }
+            cacheRef.current.set(userId, enrichedProfile)
+            return enrichedProfile
+          }
         } catch (err) {
           console.error('Error calculating stats:', err)
-          cacheRef.current.set(userId, profile)
-          return profile
+          // Continue with profile even if stats fail
         }
+        
+        cacheRef.current.set(userId, profile)
+        return profile
       } else {
         console.log('No profile found, creating fallback')
         const fallback = createFallbackProfile(userId, email)
@@ -102,8 +112,11 @@ export const useAuth = () => {
 
     // Set a timeout to ensure loading doesn't hang forever
     timeoutId = setTimeout(() => {
-      if (mountedRef.current) setLoading(false)
-    }, 3000)
+      if (mountedRef.current) {
+        console.log('Auth timeout - forcing loading to false')
+        setLoading(false)
+      }
+    }, 1000)
 
     initAuth()
 

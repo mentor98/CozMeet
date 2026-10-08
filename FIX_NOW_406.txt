@@ -1,0 +1,85 @@
+================================================================================
+                    FIX 406 ERROR - 2 MINUTE SOLUTION
+================================================================================
+
+PROBLEM: Getting "406 Not Acceptable" error when logging in
+CAUSE: CORS headers or RLS policy issue
+SOLUTION: Follow steps below
+
+================================================================================
+                       STEP 1: CLEAR CACHE (30 SECONDS)
+================================================================================
+
+[ ] Press F12 (open Developer Tools)
+[ ] Click Application tab
+[ ] Left sidebar: Local Storage
+[ ] Right-click localhost entry
+[ ] Click Delete
+[ ] Also delete Cookies for localhost:5173
+[ ] Close DevTools (F12 again)
+[ ] Refresh page (Ctrl+R)
+
+================================================================================
+                    STEP 2: CHECK SUPABASE CORS (1 MINUTE)
+================================================================================
+
+[ ] Open: https://app.supabase.com
+[ ] Go to: Settings > API
+[ ] Find: CORS Settings
+[ ] Add if missing:
+    http://localhost:5173
+    http://localhost:*
+[ ] Click Save
+
+================================================================================
+                     STEP 3: VERIFY PROFILES TABLE (30 SECONDS)
+================================================================================
+
+[ ] Still in Supabase
+[ ] Go to: Database > Tables
+[ ] Look for: profiles table
+[ ] Click it
+[ ] Should see columns:
+    [ ] id
+    [ ] username
+    [ ] display_name
+    [ ] bio
+    [ ] avatar_url
+    [ ] cover_url
+    [ ] posts_count
+    [ ] followers_count
+    [ ] following_count
+
+If missing, run FIX_406_ERROR.md SQL
+
+================================================================================
+                        STEP 4: TRY LOGIN AGAIN
+================================================================================
+
+[ ] Go to: http://localhost:5173/login
+[ ] Enter credentials
+[ ] Click Login
+[ ] Should now take you to home page! ✅
+
+================================================================================
+                          IF STILL FAILING
+================================================================================
+
+1. Close browser COMPLETELY
+2. Wait 5 seconds
+3. Reopen browser
+4. Go to http://localhost:5173
+5. Try again
+
+OR
+
+Run the SQL from FIX_406_ERROR.md to recreate the profiles table
+
+================================================================================
+
+Time: 2 minutes
+Expected result: Login works, taken to home page ✅
+
+START WITH STEP 1 NOW! 👉
+
+================================================================================

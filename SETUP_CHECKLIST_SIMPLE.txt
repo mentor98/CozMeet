@@ -1,0 +1,164 @@
+================================================================================
+                  COZMEET SETUP CHECKLIST - DO THIS NOW
+================================================================================
+
+Your app is RUNNING but needs database setup to work.
+
+                            🎯 QUICK START
+
+================================================================================
+                        STEP 1: OPEN SUPABASE
+================================================================================
+
+[ ] Open browser
+[ ] Go to: https://app.supabase.com
+[ ] Login
+[ ] Select project: iksijgrqkxmmqipjldyj
+
+================================================================================
+                     STEP 2: CREATE TABLES (Copy/Paste)
+================================================================================
+
+[ ] Click "SQL Editor" (left sidebar)
+[ ] Click "New Query"
+[ ] Open file: Backend/migrations/001_schema.sql
+[ ] Copy ALL content
+[ ] Paste into SQL Editor
+[ ] Press Ctrl+Enter
+[ ] Wait for ✅ GREEN CHECKMARK
+
+================================================================================
+                   STEP 3: ADD SECURITY (Copy/Paste)
+================================================================================
+
+[ ] Click "New Query"
+[ ] Open file: Backend/migrations/002_rls.sql
+[ ] Copy ALL content
+[ ] Paste into SQL Editor
+[ ] Press Ctrl+Enter
+[ ] Wait for ✅ GREEN CHECKMARK
+
+================================================================================
+                   STEP 4: ADD SEED DATA (Copy/Paste)
+================================================================================
+
+[ ] Click "New Query"
+[ ] Open file: Backend/migrations/003_seed.sql
+[ ] Copy ALL content
+[ ] Paste into SQL Editor
+[ ] Press Ctrl+Enter
+[ ] Wait for ✅ GREEN CHECKMARK
+
+================================================================================
+                      STEP 5: CREATE 3 BUCKETS
+================================================================================
+
+[ ] Click "Storage" (left sidebar)
+[ ] Click "Create a new bucket"
+
+BUCKET 1:
+[ ] Name: avatars
+[ ] Publicity: Public
+[ ] Click "Create bucket"
+
+BUCKET 2:
+[ ] Click "Create a new bucket"
+[ ] Name: covers
+[ ] Publicity: Public
+[ ] Click "Create bucket"
+
+BUCKET 3:
+[ ] Click "Create a new bucket"
+[ ] Name: post-images
+[ ] Publicity: Public
+[ ] Click "Create bucket"
+
+================================================================================
+                    STEP 6: ADD BUCKET POLICIES
+================================================================================
+
+For EACH bucket (avatars, covers, post-images):
+
+[ ] Click bucket name
+[ ] Go to "Policies" tab
+[ ] Click "New Policy"
+[ ] Select "Enable read access for all users"
+[ ] Click "Review"
+[ ] Click "Save policy"
+
+Do this 3 times (once for each bucket)
+
+================================================================================
+                       STEP 7: VERIFY DATABASE
+================================================================================
+
+[ ] Go to "Database" > "Tables"
+[ ] Check all 9 tables exist:
+    [ ] profiles
+    [ ] posts
+    [ ] post_likes
+    [ ] comments
+    [ ] follows
+    [ ] post_saves
+    [ ] post_shares
+    [ ] notifications
+    [ ] shortcuts
+
+[ ] Go to "Storage" > "Buckets"
+[ ] Check all 3 buckets exist:
+    [ ] avatars
+    [ ] covers
+    [ ] post-images
+
+================================================================================
+                          STEP 8: TEST APP
+================================================================================
+
+[ ] Open browser: http://localhost:5173
+[ ] Click "Register"
+[ ] Fill in:
+    [ ] Display Name: TestUser
+    [ ] Username: testuser
+    [ ] Email: test@example.com
+    [ ] Password: Test123!
+[ ] Click "Register"
+[ ] ✅ Should redirect to login
+[ ] Login with credentials
+[ ] ✅ Should see home page
+
+================================================================================
+                        TEST ALL FEATURES
+================================================================================
+
+[ ] Create Post (text only)
+[ ] Create Post (with image)
+[ ] Like a post
+[ ] Comment on post
+[ ] Follow a user
+[ ] Share a post
+
+================================================================================
+                          QUICK SUMMARY
+================================================================================
+
+WHAT YOU NEED TO DO:
+1. Go to https://app.supabase.com
+2. Copy/paste 3 SQL files (Backend/migrations/)
+3. Create 3 storage buckets
+4. Add policies to buckets
+5. Test registration at http://localhost:5173
+
+TIME TO COMPLETE: 5-10 minutes
+
+STATUS: App is running, just needs database setup
+
+================================================================================
+
+File locations for SQL:
+  - Backend/migrations/001_schema.sql
+  - Backend/migrations/002_rls.sql
+  - Backend/migrations/003_seed.sql
+
+Or use: SUPABASE_SETUP_NOW.md for detailed instructions with full SQL included
+
+================================================================================

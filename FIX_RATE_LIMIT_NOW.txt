@@ -1,0 +1,65 @@
+================================================================================
+              PREVENT "EMAIL RATE LIMIT" ERROR - 1 MINUTE FIX
+================================================================================
+
+PROBLEM: "Email rate limit exceeded" error when registering multiple times
+
+CAUSE: Supabase limits registrations to prevent spam
+
+SOLUTION: Disable email verification for development
+
+================================================================================
+                        ⚡ 1-MINUTE FIX
+================================================================================
+
+Step 1: Open Supabase
+  [ ] Go to: https://app.supabase.com
+  [ ] Login if needed
+  [ ] Select project: iksijgrqkxmmqipjldyj
+
+Step 2: Go to Settings
+  [ ] Click Settings (gear icon) on left sidebar
+  [ ] Click "Authentication"
+
+Step 3: Disable Email Confirmation
+  [ ] Find "Email Confirmations"
+  [ ] Toggle to: OFF
+  [ ] Click "Save"
+
+Step 4: Done!
+  [ ] Go back to your app: http://localhost:5173
+  [ ] Try registering again
+  [ ] ✅ Should work with any email!
+
+================================================================================
+                          RESULT
+================================================================================
+
+After disabling email verification:
+
+✅ Unlimited registrations allowed
+✅ No "rate limit" errors
+✅ Instant access after registration
+✅ Perfect for development/testing
+
+NOTE: Turn back ON for production to prevent fake accounts
+
+================================================================================
+                      REMEMBER
+================================================================================
+
+Development: Email verification OFF (test freely)
+Production: Email verification ON (prevent fake accounts)
+
+Your Register component now shows helpful error messages if rate limit
+is still enabled.
+
+================================================================================
+
+Time required: 1 minute
+Difficulty: Very Easy
+Result: No more rate limit errors
+
+GO AHEAD AND DO THIS! 👉 https://app.supabase.com
+
+================================================================================

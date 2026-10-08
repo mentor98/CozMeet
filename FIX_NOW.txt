@@ -1,0 +1,76 @@
+================================================================================
+                    EMAIL RATE LIMIT - FIX IN 30 SECONDS
+================================================================================
+
+PROBLEM: "Email rate limit exceeded"
+
+This means you tried registering 3+ times with same email within 1 hour.
+
+================================================================================
+                           ✅ QUICK FIX
+================================================================================
+
+OPTION 1: Use Different Email (EASIEST)
+  
+  [ ] Go back to registration form
+  [ ] Use NEW email: test2@example.com (or any different email)
+  [ ] Use password: Test123!
+  [ ] Fill in other fields
+  [ ] Click Register
+  [ ] ✅ Should work!
+
+================================================================================
+
+OPTION 2: Wait 1 Hour
+
+  [ ] Come back in 1 hour
+  [ ] Original email will work again
+
+================================================================================
+
+OPTION 3: Use Temporary Email Right Now
+
+  [ ] Go to: https://10minutemail.com
+  [ ] Click "Generate email"
+  [ ] Copy the email shown
+  [ ] Go back to registration at http://localhost:5173
+  [ ] Paste temp email in email field
+  [ ] Fill rest of form
+  [ ] Click Register
+  [ ] ✅ Should work!
+
+================================================================================
+                          RECOMMENDED
+================================================================================
+
+Use OPTION 1 (different email) because:
+  ✅ Fastest (30 seconds)
+  ✅ No extra websites needed
+  ✅ Works immediately
+  ✅ Email doesn't matter for testing
+
+Just use: test2@example.com, test3@example.com, test4@example.com, etc.
+
+================================================================================
+                        THEN TEST FEATURES
+================================================================================
+
+Once registered with ONE account, test:
+
+[ ] Login ✅
+[ ] Create text post ✅
+[ ] Create post with image ✅
+[ ] Like a post ✅
+[ ] Comment on post ✅
+[ ] Follow a user ✅
+[ ] Share post ✅
+
+================================================================================
+
+Status: Normal behavior, not an error
+
+Supabase limits registrations to prevent spam.
+
+FIX: Just use a different email!
+
+================================================================================

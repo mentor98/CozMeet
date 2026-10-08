@@ -1,0 +1,117 @@
+================================================================================
+                    COZMEET SUPABASE QUICK SETUP
+================================================================================
+
+Your Supabase project is ready!
+
+Project URL: https://iksijgrqkxmmqipjldyj.supabase.co
+Publishable Key: sb_publishable_TTjwLgb4nVw75CyX8bEJTA_eZYLviIF
+
+================================================================================
+                        QUICK SETUP (5 MINUTES)
+================================================================================
+
+1. OPEN SUPABASE DASHBOARD
+   Go to: https://app.supabase.com
+   Select your project
+
+2. RUN DATABASE MIGRATIONS
+   
+   a) Go to SQL Editor (left sidebar)
+   b) Click "New Query"
+   c) Copy ALL content from: Backend/migrations/001_schema.sql
+   d) Paste into SQL Editor
+   e) Click RUN (Ctrl+Enter)
+   f) Wait for success ✓
+   
+   g) Click "New Query" again
+   h) Copy ALL content from: Backend/migrations/002_rls.sql
+   i) Paste into SQL Editor
+   j) Click RUN
+   k) Wait for success ✓
+   
+   l) Click "New Query" again
+   m) Copy ALL content from: Backend/migrations/003_seed.sql
+   n) Paste into SQL Editor
+   o) Click RUN
+   p) Wait for success ✓
+
+3. CREATE STORAGE BUCKETS
+   
+   a) Go to Storage (left sidebar)
+   b) Click "Create a new bucket"
+   
+   Create these 3 buckets (all PUBLIC):
+   - avatars
+   - covers
+   - post-images
+   
+   For each bucket:
+   - Name: [bucket-name]
+   - Publicity: Public
+   - Click "Create bucket"
+
+4. SET STORAGE POLICIES
+   
+   For each bucket:
+   a) Click bucket name
+   b) Go to Policies tab
+   c) Click "New Policy"
+   d) Select "Enable read access for all users"
+   e) Click "Review" then "Save policy"
+   
+   Repeat for: avatars, covers, post-images
+
+5. VERIFY SETUP
+   
+   Check Database > Tables:
+   ✓ profiles
+   ✓ posts
+   ✓ post_likes
+   ✓ comments
+   ✓ follows
+   ✓ post_saves
+   ✓ post_shares
+   ✓ notifications
+   ✓ shortcuts
+   
+   Check Storage > Buckets:
+   ✓ avatars
+   ✓ covers
+   ✓ post-images
+
+6. TEST CONNECTION
+   
+   Go to: http://localhost:5173/
+   Click Register
+   Create account:
+   - Email: test@example.com
+   - Password: TestPassword123!
+   - Name: Test User
+   - Username: testuser
+   
+   If successful → Connected! ✓
+
+================================================================================
+                    YOUR CREDENTIALS (SAVED IN .env)
+================================================================================
+
+VITE_SUPABASE_URL=https://iksijgrqkxmmqipjldyj.supabase.co
+VITE_SUPABASE_ANON_KEY=sb_publishable_TTjwLgb4nVw75CyX8bEJTA_eZYLviIF
+
+The app is already running at: http://localhost:5173/
+
+================================================================================
+                           NEXT STEPS
+================================================================================
+
+1. Follow the 5-minute setup above
+2. Test by creating an account
+3. Create your first post!
+4. Invite others to join
+
+For detailed instructions, see: SUPABASE_SETUP_INSTRUCTIONS.md
+
+Need help? All files are in: Backend/migrations/
+
+================================================================================

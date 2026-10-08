@@ -1,11 +1,12 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo, memo } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { ProfileCard } from '@/components/profile/ProfileCard'
 import { ShortcutsCard } from '@/components/profile/ShortcutsCard'
 import { CreatePost } from '@/components/feed/CreatePost'
-import { PostCard } from '@/components/feed/PostCard'
+import { PostCardMemo } from '@/components/feed/PostCardMemo'
 import { ActivityCard } from '@/components/activity/ActivityCard'
 import { SuggestedUsers } from '@/components/suggestions/SuggestedUsers'
+import { RecommendedPosts } from '@/components/suggestions/RecommendedPosts'
 import { PostSkeleton } from '@/components/common/LoadingSkeleton'
 import { supabase } from '@/lib/supabase'
 import { Post, Profile } from '@/types'
@@ -32,52 +33,70 @@ export const Home = () => {
         query = query.order('updated_at', { ascending: false })
       }
 
-      const { data: postsData, error: postsError } = await query.eq('visibility', 'public')
+      const { data: postsData, error: postsError } = await query.eq('visibility', 'public').limit(20)
 
       if (postsError) throw postsError
 
-      // Fetch user info for each post
-      const enrichedPosts = await Promise.all(
-        (postsData || []).map(async (post) => {
-          const { data: userData } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', post.user_id)
-            .limit(1)
+      if (!postsData || postsData.length === 0) {
+        setPosts([])
+        setLoading(false)
+        return
+      }
 
-          // Fetch likes count
-          const { count: likesCount } = await supabase
-            .from('post_likes')
-            .select('*', { count: 'exact', head: true })
-            .eq('post_id', post.id)
+      // Batch fetch all user data at once (instead of individual queries)
+      const userIds = [...new Set(postsData.map(p => p.user_id))]
+      const { data: usersData } = await supabase
+        .from('profiles')
+        .select('*')
+        .in('id', userIds)
 
-          // Fetch comments count
-          const { count: commentsCount } = await supabase
-            .from('comments')
-            .select('*', { count: 'exact', head: true })
-            .eq('post_id', post.id)
+      // Batch fetch all likes at once
+      const postIds = postsData.map(p => p.id)
+      const { data: allLikes } = await supabase
+        .from('post_likes')
+        .select('post_id, user_id')
+        .in('post_id', postIds)
 
-          // Check if current user liked this post
-          let isLiked = false
-          if (profile?.id) {
-            const { data: likeData } = await supabase
-              .from('post_likes')
-              .select('id')
-              .eq('post_id', post.id)
-              .eq('user_id', profile.id)
-              .limit(1)
-            isLiked = !!likeData && likeData.length > 0
-          }
+      // Batch fetch all comments at once
+      const { data: allComments } = await supabase
+        .from('comments')
+        .select('post_id')
+        .in('post_id', postIds)
 
-          return {
-            ...post,
-            user: userData && userData.length > 0 ? userData[0] : null,
-            likes_count: likesCount || 0,
-            comments_count: commentsCount || 0,
-            is_liked: isLiked,
-          }
-        })
-      )
+      // Create lookup maps for O(1) access
+      const usersMap = new Map(usersData?.map(u => [u.id, u]) || [])
+      const likesMap = new Map<string, { count: number; userLiked: boolean }>()
+      const commentsMap = new Map<string, number>()
+
+      // Populate likes map
+      postIds.forEach(id => likesMap.set(id, { count: 0, userLiked: false }))
+      allLikes?.forEach(like => {
+        const current = likesMap.get(like.post_id)!
+        current.count++
+        if (profile?.id && like.user_id === profile.id) {
+          current.userLiked = true
+        }
+      })
+
+      // Populate comments map
+      postIds.forEach(id => commentsMap.set(id, 0))
+      allComments?.forEach(comment => {
+        commentsMap.set(comment.post_id, (commentsMap.get(comment.post_id) || 0) + 1)
+      })
+
+      // Enrich posts with all data at once
+      const enrichedPosts = postsData.map(post => {
+        const likes = likesMap.get(post.id) || { count: 0, userLiked: false }
+        const user = usersMap.get(post.user_id)
+        
+        return {
+          ...post,
+          user,
+          likes_count: likes.count,
+          comments_count: commentsMap.get(post.id) || 0,
+          is_liked: likes.userLiked,
+        }
+      })
 
       setPosts(enrichedPosts as Post[])
     } catch (err) {
@@ -209,23 +228,25 @@ export const Home = () => {
                   </p>
                 </div>
               ) : (
-                posts.map((post) => (
-                  <PostCard
-                    key={post.id}
-                    post={post}
-                    currentUser={profile}
-                    onLike={handleLike}
-                    onComment={() => setRefreshKey((prev) => prev + 1)}
-                    onShare={handleShare}
-                  />
+                posts.map((post, idx) => (
+                  <div key={post.id} style={{ animationDelay: `${idx * 50}ms` }} className="animate-slide-up">
+                    <PostCardMemo
+                      post={post}
+                      currentUser={profile}
+                      onLike={handleLike}
+                      onComment={() => setRefreshKey((prev) => prev + 1)}
+                      onShare={handleShare}
+                    />
+                  </div>
                 ))
               )}
             </div>
           </div>
 
           {/* Right Sidebar */}
-          <div className="hidden lg:flex lg:col-span-1 flex-col gap-4">
+          <div className="hidden lg:flex lg:col-span-1 flex-col gap-4 animate-slide-right">
             {profile && <ActivityCard userId={profile.id} />}
+            <RecommendedPosts currentUserId={profile?.id} />
             <SuggestedUsers currentUserId={profile?.id} />
           </div>
         </div>

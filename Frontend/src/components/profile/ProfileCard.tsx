@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { Link } from 'react-router-dom'
 import { Avatar } from '@/components/common/Avatar'
 import { Profile } from '@/types'
@@ -8,9 +9,9 @@ interface ProfileCardProps {
   showEditButton?: boolean
 }
 
-export const ProfileCard = ({ profile, showEditButton = false }: ProfileCardProps) => {
+export const ProfileCard = memo(({ profile, showEditButton = false }: ProfileCardProps) => {
   return (
-    <div className="card overflow-hidden">
+    <div className="card overflow-hidden animate-slide-down">
       {/* Cover Image */}
       <div
         className="h-32 bg-gradient-to-r from-primary-blue via-blue-400 to-light-blue"
@@ -30,7 +31,7 @@ export const ProfileCard = ({ profile, showEditButton = false }: ProfileCardProp
           <Avatar
             src={profile.avatar_url || undefined}
             size="lg"
-            className="border-4 border-white shadow-lg"
+            className="border-4 border-white shadow-lg animate-scale-in"
           />
         </div>
 
@@ -63,13 +64,13 @@ export const ProfileCard = ({ profile, showEditButton = false }: ProfileCardProp
 
         {/* Action Button */}
         {showEditButton ? (
-          <Link to="/settings" className="btn-primary w-full text-center block font-semibold">
+          <Link to="/settings" className="btn-primary w-full text-center block font-semibold hover:scale-105 transition-transform">
             ✎ Edit Profile
           </Link>
         ) : (
           <Link
             to={`/profile/${profile.username}`}
-            className="btn-secondary w-full text-center block font-semibold"
+            className="btn-secondary w-full text-center block font-semibold hover:scale-105 transition-transform"
           >
             View Profile
           </Link>
@@ -77,4 +78,12 @@ export const ProfileCard = ({ profile, showEditButton = false }: ProfileCardProp
       </div>
     </div>
   )
-}
+}, (prevProps, nextProps) => {
+  return (
+    prevProps.profile.id === nextProps.profile.id &&
+    prevProps.profile.posts_count === nextProps.profile.posts_count &&
+    prevProps.profile.followers_count === nextProps.profile.followers_count &&
+    prevProps.profile.following_count === nextProps.profile.following_count &&
+    prevProps.showEditButton === nextProps.showEditButton
+  )
+})

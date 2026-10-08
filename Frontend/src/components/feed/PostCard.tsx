@@ -34,7 +34,7 @@ export const PostCard = ({
   const displayCaption = isExpanded ? post.caption : post.caption?.slice(0, 300)
 
   return (
-    <div className="card mb-4 overflow-hidden">
+    <div className="card mb-4 overflow-hidden animate-fade-in hover:shadow-lg transition-shadow duration-300">
       {/* Post Header */}
       <div className="p-4 border-b border-border-gray flex items-center justify-between">
         <div className="flex items-center gap-3">

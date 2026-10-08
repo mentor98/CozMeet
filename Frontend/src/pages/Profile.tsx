@@ -32,72 +32,80 @@ export const Profile = () => {
       const profile = profileData && profileData.length > 0 ? profileData[0] : null
       setProfile(profile as ProfileType)
 
-      if (profile && currentUserProfile?.id) {
-        // Parallel batch fetch for better performance
-        const [postsRes, likesRes, commentsRes, followRes] = await Promise.all([
-          supabase
-            .from('posts')
-            .select('*')
-            .eq('user_id', profile.id)
-            .eq('visibility', 'public')
-            .order('created_at', { ascending: false })
-            .limit(20),
-          
-          supabase
+      if (profile) {
+        // Fetch posts (always)
+        const { data: postsData } = await supabase
+          .from('posts')
+          .select('*')
+          .eq('user_id', profile.id)
+          .eq('visibility', 'public')
+          .order('created_at', { ascending: false })
+          .limit(20)
+
+        if (postsData && postsData.length > 0) {
+          // Get all likes and comments at once
+          const { data: allLikes } = await supabase
             .from('post_likes')
-            .select('post_id, user_id'),
-          
-          supabase
+            .select('post_id, user_id')
+
+          const { data: allComments } = await supabase
             .from('comments')
-            .select('post_id'),
-          
-          supabase
+            .select('post_id')
+
+          // Create lookup maps
+          const likesMap = new Map<string, { count: number; userLiked: boolean }>()
+          const commentsMap = new Map<string, number>()
+
+          postsData.forEach(p => likesMap.set(p.id, { count: 0, userLiked: false }))
+          postsData.forEach(p => commentsMap.set(p.id, 0))
+
+          // Count likes and check if current user liked
+          allLikes?.forEach(like => {
+            const current = likesMap.get(like.post_id)!
+            if (current) {
+              current.count++
+              if (currentUserProfile?.id && like.user_id === currentUserProfile.id) {
+                current.userLiked = true
+              }
+            }
+          })
+
+          // Count comments
+          allComments?.forEach(comment => {
+            commentsMap.set(comment.post_id, (commentsMap.get(comment.post_id) || 0) + 1)
+          })
+
+          // Enrich posts with stats
+          const enrichedPosts = postsData.map(post => {
+            const likes = likesMap.get(post.id) || { count: 0, userLiked: false }
+            return {
+              ...post,
+              user: profile,
+              likes_count: likes.count,
+              comments_count: commentsMap.get(post.id) || 0,
+              is_liked: likes.userLiked,
+            }
+          })
+
+          setPosts(enrichedPosts as Post[])
+        } else {
+          setPosts([])
+        }
+
+        // Check if current user follows this profile
+        if (currentUserProfile?.id && profile.id !== currentUserProfile.id) {
+          const { data: followData } = await supabase
             .from('follows')
             .select('id')
             .eq('follower_id', currentUserProfile.id)
             .eq('following_id', profile.id)
             .limit(1)
-        ])
-
-        const postsData = postsRes.data || []
-        const allLikes = likesRes.data || []
-        const allComments = commentsRes.data || []
-        const followData = followRes.data || []
-
-        // Create lookup maps
-        const likesMap = new Map<string, { count: number; userLiked: boolean }>()
-        const commentsMap = new Map<string, number>()
-
-        postsData.forEach(p => likesMap.set(p.id, { count: 0, userLiked: false }))
-        postsData.forEach(p => commentsMap.set(p.id, 0))
-
-        allLikes.forEach(like => {
-          const current = likesMap.get(like.post_id)!
-          current.count++
-          if (like.user_id === currentUserProfile.id) current.userLiked = true
-        })
-
-        allComments.forEach(comment => {
-          commentsMap.set(comment.post_id, (commentsMap.get(comment.post_id) || 0) + 1)
-        })
-
-        // Enrich posts with stats
-        const enrichedPosts = postsData.map(post => {
-          const likes = likesMap.get(post.id) || { count: 0, userLiked: false }
-          return {
-            ...post,
-            user: profile,
-            likes_count: likes.count,
-            comments_count: commentsMap.get(post.id) || 0,
-            is_liked: likes.userLiked,
-          }
-        })
-
-        setPosts(enrichedPosts as Post[])
-        setIsFollowing(followData.length > 0)
+          setIsFollowing(!!followData && followData.length > 0)
+        }
       }
     } catch (err) {
       console.error('Failed to fetch profile:', err)
+      setLoading(false)
     } finally {
       setLoading(false)
     }

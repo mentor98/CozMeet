@@ -1,8 +1,10 @@
-import { useState } from 'react'
-import { Image, Video, PieChart, Smile, Globe, ChevronDown, Loader } from 'lucide-react'
+import { useState, useRef } from 'react'
+import { Image, Smile, ChevronDown, Loader, X, FileText } from 'lucide-react'
 import { Avatar } from '@/components/common/Avatar'
 import { Profile } from '@/types'
 import { supabase } from '@/lib/supabase'
+import { uploadPostImage } from '@/services/storage'
+import { combinePostContent } from '@/utils/format'
 
 interface CreatePostProps {
   currentUser?: Profile
@@ -11,41 +13,61 @@ interface CreatePostProps {
 
 export const CreatePost = ({ currentUser, onPostCreated }: CreatePostProps) => {
   const [isOpen, setIsOpen] = useState(false)
-  const [caption, setCaption] = useState('')
+  const [title, setTitle] = useState('')
+  const [content, setContent] = useState('')
   const [selectedImage, setSelectedImage] = useState<File | null>(null)
   const [preview, setPreview] = useState<string>('')
   const [visibility, setVisibility] = useState('public')
   const [isLoading, setIsLoading] = useState(false)
+  const [statusText, setStatusText] = useState('')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
+      if (!file.type.startsWith('image/')) {
+        setErrorMessage('Please select a valid image file (JPEG, PNG, WEBP, GIF)')
+        return
+      }
       setSelectedImage(file)
+      setErrorMessage(null)
       const reader = new FileReader()
       reader.onload = (event) => {
         setPreview(event.target?.result as string)
       }
       reader.readAsDataURL(file)
+      if (!isOpen) {
+        setIsOpen(true)
+      }
+    }
+  }
+
+  const removeSelectedImage = () => {
+    setSelectedImage(null)
+    setPreview('')
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
     }
   }
 
   const handlePost = async () => {
     setErrorMessage(null)
-    if (!caption.trim() && !selectedImage) {
-      setErrorMessage('Please write something or add an image to post!')
+    const cleanTitle = title.trim()
+    const cleanContent = content.trim()
+
+    if (!cleanTitle && !cleanContent && !selectedImage) {
+      setErrorMessage('Please enter a title or write a blog post before publishing.')
       return
     }
     if (!currentUser?.id) {
-      setErrorMessage('Please login to post!')
+      setErrorMessage('Please sign in to publish a post.')
       return
     }
 
     setIsLoading(true)
     try {
-      console.log('Creating post for user:', currentUser.id)
-
-      // First, ensure profile exists
+      // 1. Verify or create user profile record if needed
       const { data: existingProfile } = await supabase
         .from('profiles')
         .select('id')
@@ -53,8 +75,8 @@ export const CreatePost = ({ currentUser, onPostCreated }: CreatePostProps) => {
         .limit(1)
 
       if (!existingProfile || existingProfile.length === 0) {
-        console.log('Profile not found, creating...')
-        const { error: profileError } = await supabase
+        setStatusText('Verifying profile...')
+        await supabase
           .from('profiles')
           .insert({
             id: currentUser.id,
@@ -64,75 +86,42 @@ export const CreatePost = ({ currentUser, onPostCreated }: CreatePostProps) => {
             followers_count: 0,
             following_count: 0,
           })
-
-        if (profileError) {
-          console.error('Profile creation error:', profileError)
-          throw new Error(`Profile creation failed: ${profileError.message}`)
-        }
       }
-
-      console.log('Profile verified, uploading image if selected...')
 
       let imageUrl: string | null = null
 
-      // Upload image if selected
+      // 2. Upload image to post-images storage bucket if attached
       if (selectedImage) {
-        try {
-          const fileExt = selectedImage.name.split('.').pop()
-          const fileName = `${currentUser.id}-${Date.now()}.${fileExt}`
-          const filePath = `posts/${fileName}`
-
-          console.log('Uploading image to:', filePath)
-
-          const { error: uploadError, data: uploadData } = await supabase.storage
-            .from('post-images')
-            .upload(filePath, selectedImage)
-
-          if (uploadError) {
-            console.error('Upload error:', uploadError)
-            throw new Error(`Image upload failed: ${uploadError.message}`)
-          }
-
-          console.log('Image uploaded successfully, getting public URL...')
-
-          const { data: publicUrlData } = supabase.storage
-            .from('post-images')
-            .getPublicUrl(filePath)
-
-          imageUrl = publicUrlData?.publicUrl || null
-          console.log('Image URL:', imageUrl)
-        } catch (err) {
-          console.error('Image upload failed:', err)
-          imageUrl = null
-        }
+        setStatusText('Uploading attached image...')
+        imageUrl = await uploadPostImage(selectedImage, currentUser.id)
       }
 
-      console.log('Creating post with imageUrl:', imageUrl)
+      // 3. Format caption with title + blog content
+      const combinedCaption = combinePostContent(cleanTitle, cleanContent)
 
-      // Create post
+      // 4. Create post with caption and optional image_url
+      setStatusText('Publishing post...')
       const { error: postError } = await supabase
         .from('posts')
         .insert({
           user_id: currentUser.id,
-          caption: caption.trim() || null,
+          caption: combinedCaption || null,
           image_url: imageUrl,
-          visibility: 'public',
+          visibility: visibility || 'public',
         })
 
       if (postError) {
-        console.error('Post insert error:', postError)
         throw new Error(postError.message || 'Failed to insert post')
       }
 
-      console.log('Post created successfully!')
-
       // Reset form
-      setCaption('')
-      setSelectedImage(null)
-      setPreview('')
+      setTitle('')
+      setContent('')
+      removeSelectedImage()
       setIsOpen(false)
-      
-      // Notify parent
+      setStatusText('')
+
+      // Notify parent to refresh feed
       onPostCreated?.()
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Unknown error'
@@ -140,70 +129,136 @@ export const CreatePost = ({ currentUser, onPostCreated }: CreatePostProps) => {
       setErrorMessage(`Failed to create post: ${errorMsg}`)
     } finally {
       setIsLoading(false)
+      setStatusText('')
     }
   }
 
   return (
-    <div className="card p-4 mb-4">
+    <div className="card p-4">
       <div className="flex gap-3">
         <Avatar src={currentUser?.avatar_url || undefined} size="md" />
         <div className="flex-1">
           {!isOpen ? (
-            <div
-              onClick={() => setIsOpen(true)}
-              className="bg-light-gray rounded-full px-4 py-3 cursor-pointer hover:bg-gray-200 transition-colors"
-            >
-              <p className="text-secondary-text">Share something...</p>
+            <div className="flex items-center gap-2">
+              <div
+                onClick={() => setIsOpen(true)}
+                className="flex-1 bg-light-gray rounded-full px-4 py-3 cursor-pointer hover:bg-gray-200 transition-colors"
+              >
+                <p className="text-secondary-text text-sm">Write a blog post or share something...</p>
+              </div>
+              <label className="cursor-pointer p-2.5 hover:bg-light-gray rounded-full transition-colors text-primary-blue flex items-center gap-1.5 text-xs font-semibold">
+                <Image size={18} />
+                <span className="hidden sm:inline">Photo</span>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageSelect}
+                  className="hidden"
+                />
+              </label>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-3.5">
+              <div className="flex items-center justify-between pb-1 border-b border-border-gray/50">
+                <div className="flex items-center gap-1.5 text-primary-blue font-bold text-xs uppercase tracking-wider">
+                  <FileText size={15} />
+                  <span>Create Blog Post</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsOpen(false)
+                    setTitle('')
+                    setContent('')
+                    removeSelectedImage()
+                  }}
+                  className="text-secondary-text hover:text-dark-text p-1 rounded-md"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
               {errorMessage && (
                 <div className="bg-red-50 border border-red-200 text-red-700 text-xs px-3 py-2 rounded-lg">
                   {errorMessage}
                 </div>
               )}
-              <textarea
-                value={caption}
-                onChange={(e) => setCaption(e.target.value)}
-                placeholder="Share something..."
-                className="w-full px-4 py-3 border border-border-gray rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-blue resize-none text-sm"
-                rows={3}
-              />
 
+              {/* Title of the Post */}
+              <div>
+                <label className="block text-xs font-bold text-dark-text mb-1">
+                  Title of the post
+                </label>
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Enter your post title (e.g. Navigating Key Tech Trends)..."
+                  className="w-full px-3.5 py-2.5 border border-border-gray rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-blue text-sm font-semibold text-dark-text placeholder:text-secondary-text placeholder:font-normal bg-white"
+                  disabled={isLoading}
+                />
+              </div>
+
+              {/* Blog Post Content */}
+              <div>
+                <label className="block text-xs font-bold text-dark-text mb-1">
+                  Blog post content
+                </label>
+                <textarea
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  placeholder="Write your blog post, story, thoughts, or insights..."
+                  className="w-full px-3.5 py-3 border border-border-gray rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-blue resize-none text-sm text-dark-text placeholder:text-secondary-text bg-white leading-relaxed"
+                  rows={4}
+                  disabled={isLoading}
+                />
+              </div>
+
+              {/* Attached Image Preview */}
               {preview && (
-                <div className="relative">
-                  <img src={preview} alt="Preview" className="max-h-64 rounded-lg w-full object-cover" />
+                <div className="relative rounded-xl overflow-hidden border border-border-gray bg-black/5">
+                  <img
+                    src={preview}
+                    alt="Selected attachment preview"
+                    className="max-h-80 w-full object-contain mx-auto"
+                  />
                   <button
-                    onClick={() => {
-                      setPreview('')
-                      setSelectedImage(null)
-                    }}
-                    className="absolute top-2 right-2 bg-black/50 text-white rounded-full p-2 hover:bg-black/70"
+                    type="button"
+                    onClick={removeSelectedImage}
+                    disabled={isLoading}
+                    className="absolute top-2 right-2 bg-black/70 hover:bg-black text-white rounded-full p-1.5 transition-colors shadow-md"
+                    title="Remove image"
                   >
-                    ✕
+                    <X size={16} />
                   </button>
+                  <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-sm text-white text-[11px] px-2.5 py-1 rounded-md">
+                    Image attached
+                  </div>
                 </div>
               )}
 
-              <div className="flex items-center justify-between">
-                <div className="flex gap-2">
-                  <label className="cursor-pointer p-2 hover:bg-light-gray rounded-lg transition-colors">
-                    <Image size={20} className="text-secondary-text" />
+              {/* Action Bar */}
+              <div className="flex items-center justify-between pt-1">
+                <div className="flex items-center gap-2">
+                  <label className="cursor-pointer p-2 hover:bg-light-gray rounded-lg transition-colors text-primary-blue flex items-center gap-1.5 text-xs font-semibold border border-transparent hover:border-border-gray">
+                    <Image size={18} />
+                    <span>{selectedImage ? 'Change Image' : 'Attach Image (optional)'}</span>
                     <input
+                      ref={fileInputRef}
                       type="file"
                       accept="image/*"
                       onChange={handleImageSelect}
+                      disabled={isLoading}
                       className="hidden"
                     />
                   </label>
-                  <button className="p-2 hover:bg-light-gray rounded-lg transition-colors">
-                    <Video size={20} className="text-secondary-text" />
-                  </button>
-                  <button className="p-2 hover:bg-light-gray rounded-lg transition-colors">
-                    <PieChart size={20} className="text-secondary-text" />
-                  </button>
-                  <button className="p-2 hover:bg-light-gray rounded-lg transition-colors">
-                    <Smile size={20} className="text-secondary-text" />
+                  <button
+                    type="button"
+                    className="p-2 hover:bg-light-gray rounded-lg transition-colors text-secondary-text"
+                    title="Emoji"
+                  >
+                    <Smile size={18} />
                   </button>
                 </div>
 
@@ -212,44 +267,32 @@ export const CreatePost = ({ currentUser, onPostCreated }: CreatePostProps) => {
                     <select
                       value={visibility}
                       onChange={(e) => setVisibility(e.target.value)}
-                      className="appearance-none px-3 py-2 border border-border-gray rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-blue text-sm pr-8"
+                      disabled={isLoading}
+                      className="appearance-none px-3 py-2 border border-border-gray rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-blue text-xs pr-7 text-dark-text"
                     >
                       <option value="public">Public</option>
                       <option value="private">Private</option>
                       <option value="friends">Friends</option>
                     </select>
                     <ChevronDown
-                      size={16}
+                      size={14}
                       className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-secondary-text"
                     />
                   </div>
+
                   <button
                     onClick={handlePost}
-                    disabled={(!caption.trim() && !selectedImage) || isLoading}
-                    className="btn-primary text-sm py-2 px-6 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    disabled={(!title.trim() && !content.trim() && !selectedImage) || isLoading}
+                    className="btn-primary text-xs py-2 px-5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-bold"
                   >
-                    {isLoading && <Loader size={16} className="animate-spin" />}
-                    {isLoading ? 'Posting...' : 'Post'}
+                    {isLoading && <Loader size={14} className="animate-spin" />}
+                    <span>{isLoading ? statusText || 'Publishing...' : 'Publish Post'}</span>
                   </button>
                 </div>
               </div>
             </div>
           )}
         </div>
-
-        {isOpen && (
-          <button
-            onClick={() => {
-              setIsOpen(false)
-              setCaption('')
-              setPreview('')
-              setSelectedImage(null)
-            }}
-            className="text-secondary-text hover:text-dark-text"
-          >
-            ✕
-          </button>
-        )}
       </div>
     </div>
   )

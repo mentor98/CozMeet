@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Profile } from '@/types'
+import { calculateProfileStats } from '@/services/stats'
 
 export const useAuth = () => {
   const [profile, setProfile] = useState<Profile | null>(null)
@@ -23,8 +24,8 @@ export const useAuth = () => {
     updated_at: new Date().toISOString(),
   }), [])
 
-  const fetchProfile = useCallback(async (userId: string, email?: string): Promise<Profile> => {
-    if (cacheRef.current.has(userId)) {
+  const fetchProfile = useCallback(async (userId: string, email?: string, skipCache = false): Promise<Profile> => {
+    if (!skipCache && cacheRef.current.has(userId)) {
       return cacheRef.current.get(userId)!
     }
 
@@ -35,22 +36,28 @@ export const useAuth = () => {
         .eq('id', userId)
         .limit(1)
 
-      if (fetchError) {
-        console.warn('Profile fetch error:', fetchError.message)
-        const fallback = createFallbackProfile(userId, email)
-        cacheRef.current.set(userId, fallback)
-        return fallback
+      let baseProfile: Profile
+      if (fetchError || !data || data.length === 0) {
+        baseProfile = createFallbackProfile(userId, email)
+      } else {
+        baseProfile = data[0] as Profile
       }
 
-      if (data && data.length > 0) {
-        const fetched = data[0] as Profile
-        cacheRef.current.set(userId, fetched)
-        return fetched
-      } else {
-        const fallback = createFallbackProfile(userId, email)
-        cacheRef.current.set(userId, fallback)
-        return fallback
+      // Calculate live counts for posts, followers, and following
+      try {
+        const liveStats = await calculateProfileStats(userId)
+        baseProfile = {
+          ...baseProfile,
+          posts_count: liveStats.posts_count,
+          followers_count: liveStats.followers_count,
+          following_count: liveStats.following_count,
+        }
+      } catch (statsErr) {
+        console.warn('Error fetching live stats for profile:', statsErr)
       }
+
+      cacheRef.current.set(userId, baseProfile)
+      return baseProfile
     } catch (err) {
       console.warn('Error fetching profile:', err)
       const fallback = createFallbackProfile(userId, email)
@@ -58,6 +65,16 @@ export const useAuth = () => {
       return fallback
     }
   }, [createFallbackProfile])
+
+  const refreshProfile = useCallback(async () => {
+    if (session?.user?.id) {
+      cacheRef.current.delete(session.user.id)
+      const updated = await fetchProfile(session.user.id, session.user.email, true)
+      setProfile(updated)
+      return updated
+    }
+    return null
+  }, [session, fetchProfile])
 
   useEffect(() => {
     let isMounted = true
@@ -106,7 +123,7 @@ export const useAuth = () => {
 
         if (event === 'SIGNED_IN' && currentSession?.user?.id) {
           setSession(currentSession)
-          const fetchedProfile = await fetchProfile(currentSession.user.id, currentSession.user.email)
+          const fetchedProfile = await fetchProfile(currentSession.user.id, currentSession.user.email, true)
           if (isMounted) {
             setProfile(fetchedProfile)
             setLoading(false)
@@ -129,5 +146,6 @@ export const useAuth = () => {
     }
   }, [fetchProfile])
 
-  return { profile, loading, error, session }
+  return { profile, loading, error, session, refreshProfile }
 }
+

@@ -14,7 +14,7 @@ import { Post, Profile } from '@/types'
 import { ChevronDown } from 'lucide-react'
 
 export const Home = () => {
-  const { profile } = useAuth()
+  const { profile, refreshProfile } = useAuth()
   const [posts, setPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'recent' | 'popular' | 'following'>('recent')
@@ -113,8 +113,26 @@ export const Home = () => {
   }, [fetchPosts, refreshKey])
 
   const handlePostCreated = () => {
-    // Recalculate stats when new post is created
+    // Recalculate stats and refresh feed when new post is created
     setRefreshKey((prev) => prev + 1)
+    refreshProfile?.()
+  }
+
+  const handleEditPost = (postId: string, updatedData: Partial<Post>) => {
+    setPosts((prevPosts) =>
+      prevPosts.map((p) => (p.id === postId ? { ...p, ...updatedData } : p))
+    )
+    setToastMessage('Post updated successfully!')
+  }
+
+  const handleDeletePost = (postId: string) => {
+    setPosts((prevPosts) => prevPosts.filter((p) => p.id !== postId))
+    setToastMessage('Post deleted successfully!')
+    refreshProfile?.()
+  }
+
+  const handleReportPost = (_postId: string, reason: string) => {
+    setToastMessage(`Post reported (${reason}). Thank you for your feedback.`)
   }
 
   const handleLike = async (postId: string) => {
@@ -182,26 +200,26 @@ export const Home = () => {
 
   return (
     <div className="bg-light-gray min-h-screen">
-      <div className="max-w-7xl mx-auto px-4 py-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
+      <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-10 py-5 sm:py-6">
+        <div className="grid grid-cols-1 md:grid-cols-12 lg:grid-cols-12 gap-5 xl:gap-6 items-start">
           {/* Left Sidebar */}
-          <div className="hidden md:flex md:col-span-1 flex-col gap-4">
+          <div className="hidden md:flex md:col-span-4 lg:col-span-3 flex-col gap-5">
             {profile && <ProfileCard profile={profile} showEditButton={true} />}
             <ShortcutsCard shortcuts={[]} />
           </div>
 
           {/* Center Feed */}
-          <div className="md:col-span-2 lg:col-span-2 flex flex-col gap-4">
+          <div className="col-span-1 md:col-span-8 lg:col-span-6 flex flex-col gap-4 sm:gap-5 min-w-0">
             {profile && <CreatePost currentUser={profile} onPostCreated={handlePostCreated} />}
 
             {/* Feed Filter */}
-            <div className="flex items-center gap-2 px-4 py-3 card">
-              <span className="text-secondary-text text-sm">Sort by:</span>
+            <div className="flex items-center justify-between px-4 py-3 card">
+              <span className="text-secondary-text text-sm font-medium">Sort by:</span>
               <div className="relative">
                 <select
                   value={filter}
                   onChange={(e) => setFilter(e.target.value as any)}
-                  className="appearance-none px-3 py-2 border border-border-gray rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-blue text-sm pr-8"
+                  className="appearance-none px-3.5 py-1.5 border border-border-gray rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-primary-blue text-sm pr-8 font-medium text-dark-text cursor-pointer hover:border-gray-400 transition-colors"
                 >
                   <option value="recent">Recent</option>
                   <option value="popular">Popular</option>
@@ -209,13 +227,13 @@ export const Home = () => {
                 </select>
                 <ChevronDown
                   size={16}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-secondary-text"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-secondary-text"
                 />
               </div>
             </div>
 
             {/* Posts */}
-            <div className="space-y-4">
+            <div className="flex flex-col gap-4 sm:gap-5">
               {loading ? (
                 <>
                   <PostSkeleton />
@@ -238,6 +256,9 @@ export const Home = () => {
                       onLike={handleLike}
                       onComment={() => setRefreshKey((prev) => prev + 1)}
                       onShare={handleShare}
+                      onEdit={handleEditPost}
+                      onDelete={handleDeletePost}
+                      onReport={handleReportPost}
                     />
                   </div>
                 ))
@@ -246,7 +267,7 @@ export const Home = () => {
           </div>
 
           {/* Right Sidebar */}
-          <div className="hidden lg:flex lg:col-span-1 flex-col gap-4 animate-slide-right">
+          <div className="hidden lg:flex lg:col-span-3 flex-col gap-5 animate-slide-right">
             {profile && <ActivityCard userId={profile.id} />}
             <RecommendedPosts currentUserId={profile?.id} />
             <SuggestedUsers currentUserId={profile?.id} />

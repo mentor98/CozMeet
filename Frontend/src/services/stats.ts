@@ -1,50 +1,38 @@
 import { supabase } from '@/lib/supabase'
 
-// Timeout promise helper
-const withTimeout = <T,>(promise: PromiseLike<T>, timeoutMs: number): Promise<T> => {
-  return Promise.race([
-    Promise.resolve(promise),
-    new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error('Timeout')), timeoutMs)
-    ),
-  ])
-}
-
 export const calculateProfileStats = async (userId: string) => {
+  if (!userId) {
+    return {
+      posts_count: 0,
+      followers_count: 0,
+      following_count: 0,
+    }
+  }
+
   try {
-    // Fetch all stats in parallel with timeout
-    const [postsRes, followersRes, followingRes]: any[] = await Promise.all([
-      withTimeout(
-        supabase
-          .from('posts')
-          .select('*', { count: 'exact', head: true })
-          .eq('user_id', userId),
-        2000
-      ),
-      withTimeout(
-        supabase
-          .from('follows')
-          .select('*', { count: 'exact', head: true })
-          .eq('following_id', userId),
-        2000
-      ),
-      withTimeout(
-        supabase
-          .from('follows')
-          .select('*', { count: 'exact', head: true })
-          .eq('follower_id', userId),
-        2000
-      ),
+    // Fetch live counts in parallel directly from posts and follows tables
+    const [postsRes, followersRes, followingRes] = await Promise.all([
+      supabase
+        .from('posts')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId),
+      supabase
+        .from('follows')
+        .select('*', { count: 'exact', head: true })
+        .eq('following_id', userId),
+      supabase
+        .from('follows')
+        .select('*', { count: 'exact', head: true })
+        .eq('follower_id', userId),
     ])
 
     return {
-      posts_count: postsRes.count || 0,
-      followers_count: followersRes.count || 0,
-      following_count: followingRes.count || 0,
+      posts_count: postsRes.count ?? 0,
+      followers_count: followersRes.count ?? 0,
+      following_count: followingRes.count ?? 0,
     }
   } catch (err) {
-    console.error('Error calculating stats:', err)
-    // Return default stats on timeout/error
+    console.error('Error calculating live profile stats:', err)
     return {
       posts_count: 0,
       followers_count: 0,
@@ -54,15 +42,16 @@ export const calculateProfileStats = async (userId: string) => {
 }
 
 export const updateProfileStats = async (userId: string) => {
+  if (!userId) return null
+
   try {
     const stats = await calculateProfileStats(userId)
 
-    const { error } = await supabase
+    // Sync to profiles table in Supabase
+    await supabase
       .from('profiles')
       .update(stats)
       .eq('id', userId)
-
-    if (error) throw error
 
     return stats
   } catch (err) {
@@ -70,3 +59,4 @@ export const updateProfileStats = async (userId: string) => {
     return null
   }
 }
+

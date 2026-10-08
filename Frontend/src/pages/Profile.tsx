@@ -6,11 +6,12 @@ import { Profile as ProfileType, Post } from '@/types'
 import { Avatar } from '@/components/common/Avatar'
 import { PostCardMemo } from '@/components/feed/PostCardMemo'
 import { formatCount } from '@/utils/format'
+import { calculateProfileStats, updateProfileStats } from '@/services/stats'
 import { MapPin, Link as LinkIcon, Calendar } from 'lucide-react'
 
 export const Profile = () => {
   const { username } = useParams<{ username: string }>()
-  const { profile: currentUserProfile } = useAuth()
+  const { profile: currentUserProfile, refreshProfile: refreshCurrentProfile } = useAuth()
   const [profile, setProfile] = useState<ProfileType | null>(null)
   const [posts, setPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
@@ -24,15 +25,29 @@ export const Profile = () => {
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('*')
-        .eq('username', username)
+        .ilike('username', username || '')
         .limit(1)
 
       if (profileError) throw profileError
       
-      const profile = profileData && profileData.length > 0 ? profileData[0] : null
-      setProfile(profile as ProfileType)
+      let profile = profileData && profileData.length > 0 ? profileData[0] : null
 
       if (profile) {
+        // Fetch live stats for this profile
+        try {
+          const stats = await calculateProfileStats(profile.id)
+          profile = {
+            ...profile,
+            posts_count: stats.posts_count,
+            followers_count: stats.followers_count,
+            following_count: stats.following_count,
+          }
+        } catch (statsErr) {
+          console.warn('Could not compute profile stats:', statsErr)
+        }
+
+        setProfile(profile as ProfileType)
+
         // Fetch posts (always)
         const { data: postsData } = await supabase
           .from('posts')
@@ -102,6 +117,8 @@ export const Profile = () => {
             .limit(1)
           setIsFollowing(!!followData && followData.length > 0)
         }
+      } else {
+        setProfile(null)
       }
     } catch (err) {
       console.error('Failed to fetch profile:', err)
@@ -154,9 +171,93 @@ export const Profile = () => {
           followers_count: profile.followers_count + 1,
         })
       }
+
+      // Sync stats in database and refresh current user profile
+      updateProfileStats(profile.id)
+      updateProfileStats(currentUserProfile.id)
+      refreshCurrentProfile?.()
     } catch (err) {
       console.error('Error toggling follow:', err)
     }
+  }
+
+  const handleLike = async (postId: string) => {
+    if (!currentUserProfile?.id) return
+
+    try {
+      const post = posts.find((p) => p.id === postId)
+      if (!post) return
+
+      if (post.is_liked) {
+        await supabase
+          .from('post_likes')
+          .delete()
+          .eq('post_id', postId)
+          .eq('user_id', currentUserProfile.id)
+
+        setPosts((prev) =>
+          prev.map((p) =>
+            p.id === postId
+              ? { ...p, likes_count: Math.max(0, (p.likes_count || 0) - 1), is_liked: false }
+              : p
+          )
+        )
+      } else {
+        await supabase
+          .from('post_likes')
+          .insert([{ post_id: postId, user_id: currentUserProfile.id }])
+
+        setPosts((prev) =>
+          prev.map((p) =>
+            p.id === postId
+              ? { ...p, likes_count: (p.likes_count || 0) + 1, is_liked: true }
+              : p
+          )
+        )
+      }
+    } catch (err) {
+      console.error('Error toggling like:', err)
+    }
+  }
+
+  const handleShare = async (postId: string) => {
+    if (!currentUserProfile?.id) return
+    try {
+      await supabase
+        .from('post_shares')
+        .insert([{ post_id: postId, user_id: currentUserProfile.id }])
+
+      const postUrl = `${window.location.origin}/profile/${profile?.username || 'post'}#${postId}`
+      await navigator.clipboard.writeText(postUrl)
+    } catch (err) {
+      console.error('Error sharing post:', err)
+    }
+  }
+
+  const handleEditPost = (postId: string, updatedData: Partial<Post>) => {
+    setPosts((prev) =>
+      prev.map((p) => (p.id === postId ? { ...p, ...updatedData } : p))
+    )
+  }
+
+  const handleDeletePost = (postId: string) => {
+    setPosts((prev) => prev.filter((p) => p.id !== postId))
+    setProfile((prev) =>
+      prev
+        ? {
+            ...prev,
+            posts_count: Math.max(0, prev.posts_count - 1),
+          }
+        : null
+    )
+    if (currentUserProfile?.id) {
+      updateProfileStats(currentUserProfile.id)
+      refreshCurrentProfile?.()
+    }
+  }
+
+  const handleReportPost = (_postId: string, _reason: string) => {
+    // Handled in PostCard
   }
 
   if (loading) {
@@ -198,7 +299,7 @@ export const Profile = () => {
       </div>
 
       {/* Profile Header - Facebook Style */}
-      <div className="max-w-6xl mx-auto px-4">
+      <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-10">
         {/* Avatar and Info Section */}
         <div className="relative -mt-20 mb-6 animate-slide-up">
           <div className="flex flex-col md:flex-row gap-6 items-end">
@@ -309,9 +410,11 @@ export const Profile = () => {
                   <PostCardMemo
                     post={post}
                     currentUser={currentUserProfile}
-                    onLike={() => {}}
-                    onComment={() => {}}
-                    onShare={() => {}}
+                    onLike={handleLike}
+                    onShare={handleShare}
+                    onEdit={handleEditPost}
+                    onDelete={handleDeletePost}
+                    onReport={handleReportPost}
                   />
                 </div>
               ))

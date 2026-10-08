@@ -6,6 +6,7 @@ import { Profile } from '@/types'
 import { Avatar } from '@/components/common/Avatar'
 import { Toast } from '@/components/common/Toast'
 import { formatCount } from '@/utils/format'
+import { updateProfileStats } from '@/services/stats'
 import {
   Search,
   Users,
@@ -98,6 +99,8 @@ export const People = () => {
           )
         )
         setToastMessage(`Unfollowed @${targetUser.username}`)
+        updateProfileStats(targetUser.id)
+        updateProfileStats(currentUser.id)
       } else {
         // Follow
         const { error } = await supabase.from('follows').insert([
@@ -121,6 +124,8 @@ export const People = () => {
           )
         )
         setToastMessage(`Now following @${targetUser.username}! 🎉`)
+        updateProfileStats(targetUser.id)
+        updateProfileStats(currentUser.id)
       }
     } catch (err: any) {
       console.error('Error toggling follow:', err)
@@ -156,8 +161,8 @@ export const People = () => {
   }, [users, searchQuery, filter, followingMap])
 
   return (
-    <div className="bg-light-gray min-h-screen py-8">
-      <div className="max-w-6xl mx-auto px-4">
+    <div className="bg-light-gray min-h-screen">
+      <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-10 py-5 sm:py-6">
         {/* Toast */}
         {toastMessage && (
           <Toast message={toastMessage} onClose={() => setToastMessage(null)} />

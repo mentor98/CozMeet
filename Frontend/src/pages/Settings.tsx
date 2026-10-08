@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase'
 import { Avatar } from '@/components/common/Avatar'
+import { uploadAvatarImage } from '@/services/storage'
+import { Camera, Loader } from 'lucide-react'
 
 export const Settings = () => {
   const navigate = useNavigate()
@@ -12,8 +14,11 @@ export const Settings = () => {
     username: '',
     bio: '',
   })
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const [avatarUploading, setAvatarUploading] = useState(false)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
+  const avatarInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (profile) {
@@ -22,8 +27,44 @@ export const Settings = () => {
         username: profile.username || '',
         bio: profile.bio || '',
       })
+      setAvatarUrl(profile.avatar_url || null)
     }
   }, [profile])
+
+  const handleAvatarSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !profile?.id) return
+
+    if (!file.type.startsWith('image/')) {
+      setMessage('Please select a valid image file.')
+      return
+    }
+
+    try {
+      setAvatarUploading(true)
+      setMessage('')
+      const newAvatarUrl = await uploadAvatarImage(file, profile.id)
+      setAvatarUrl(newAvatarUrl)
+
+      // Automatically update profile row with new avatar
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({
+          avatar_url: newAvatarUrl,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', profile.id)
+
+      if (updateError) throw updateError
+      setMessage('Avatar photo updated successfully!')
+      setTimeout(() => setMessage(''), 3000)
+    } catch (err: any) {
+      console.error('Avatar upload error:', err)
+      setMessage(err?.message || 'Failed to upload avatar')
+    } finally {
+      setAvatarUploading(false)
+    }
+  }
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -72,8 +113,8 @@ export const Settings = () => {
   }
 
   return (
-    <div className="bg-light-gray min-h-screen py-8">
-      <div className="max-w-2xl mx-auto px-4">
+    <div className="bg-light-gray min-h-screen">
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-6">
         <div className="card p-8">
           <h1 className="text-3xl font-bold text-dark-text mb-8">Settings</h1>
 
@@ -90,20 +131,52 @@ export const Settings = () => {
           )}
 
           <form onSubmit={handleSave} className="space-y-6">
-            {/* Avatar Preview */}
+            {/* Avatar Preview & Upload */}
             <div className="flex items-center gap-4 pb-6 border-b border-border-gray">
-              <Avatar
-                src={profile?.avatar_url || undefined}
-                size="lg"
-                alt={formData.display_name}
-              />
-              <div>
+              <div className="relative group">
+                <Avatar
+                  src={avatarUrl || profile?.avatar_url || undefined}
+                  size="lg"
+                  alt={formData.display_name}
+                />
+                <button
+                  type="button"
+                  onClick={() => avatarInputRef.current?.click()}
+                  disabled={avatarUploading}
+                  className="absolute inset-0 bg-black/40 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  title="Change avatar"
+                >
+                  {avatarUploading ? (
+                    <Loader size={20} className="animate-spin" />
+                  ) : (
+                    <Camera size={20} />
+                  )}
+                </button>
+                <input
+                  ref={avatarInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleAvatarSelect}
+                  disabled={avatarUploading}
+                  className="hidden"
+                />
+              </div>
+              <div className="flex-1">
                 <p className="font-semibold text-dark-text text-sm">
                   {formData.display_name || 'Your Profile'}
                 </p>
-                <p className="text-xs text-secondary-text">
+                <p className="text-xs text-secondary-text mb-2">
                   @{formData.username || 'username'}
                 </p>
+                <button
+                  type="button"
+                  onClick={() => avatarInputRef.current?.click()}
+                  disabled={avatarUploading}
+                  className="text-xs font-semibold text-primary-blue hover:underline flex items-center gap-1.5"
+                >
+                  <Camera size={13} />
+                  <span>{avatarUploading ? 'Uploading...' : 'Change avatar photo'}</span>
+                </button>
               </div>
             </div>
 
